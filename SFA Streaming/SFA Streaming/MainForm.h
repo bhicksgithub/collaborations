@@ -5,7 +5,6 @@
 #include "cPixeLINK.h"
 #include "CameraParameters.h"
 #include "fitsio.h"
-#include <fstream>
 
 namespace VNCTest {
 	using namespace System;
