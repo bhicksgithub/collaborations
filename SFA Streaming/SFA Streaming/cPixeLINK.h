@@ -18,7 +18,7 @@ public:
 private:
 	int hCamera;
 	unsigned int bSize;
-	HANDLE camMutex;
+	CRITICAL_SECTION camCS;
 
 	unsigned int getBufferSize();
 	unsigned int getPixelSize(unsigned int pixelFormat);

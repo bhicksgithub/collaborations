@@ -25,11 +25,7 @@ cPhotonMAX::cPhotonMAX(uns32 expTime, int16 gain,
 		throw e;
 	}
 
-	camMutex = CreateMutex(
-		NULL,
-		FALSE,
-		NULL
-	);
+	InitializeCriticalSectionAndSpinCount(&camCS, 0x00000400);
 
 	startStream();
 }
@@ -44,46 +40,48 @@ cPhotonMAX::~cPhotonMAX() {
 
 	pl_cam_close(hCam);
 	pl_pvcam_uninit();
+
+	DeleteCriticalSection(&camCS);
 }
 
 void cPhotonMAX::setROI(unsigned short startX, unsigned short startY,
 	unsigned short endX, unsigned short endY) {
 	
-	WaitForSingleObject(camMutex, INFINITE);
+	EnterCriticalSection(&camCS);
 	region = { startX, endX, 1, startY, endY, 1 };
 	this->WX = (endX - startX) + 1;
 	this->WY = (endY - startY) + 1;
-	ReleaseMutex(camMutex);
+	LeaveCriticalSection(&camCS);
 	refreshCameraSettings();
 }
 
 void cPhotonMAX::setGain(unsigned short g) {
 	uns16 gain = g;
-	WaitForSingleObject(camMutex, INFINITE);
+	EnterCriticalSection(&camCS);
 	//refreshCameraSettings();
 	pl_set_param(hCam, PARAM_GAIN_MULT_FACTOR, (void *)&gain);
-	ReleaseMutex(camMutex);
+	LeaveCriticalSection(&camCS);
 	startIfNot();
 }
 
 void cPhotonMAX::startIfNot() {
 	// TODO: Find a way to synchronize this.
 
-	WaitForSingleObject(camMutex, INFINITE);
+	EnterCriticalSection(&camCS);
 	if (!started) {
 		pl_exp_start_seq(hCam, frame);
 		started = true;
 	}
-	ReleaseMutex(camMutex);
+	LeaveCriticalSection(&camCS);
 }
 
 void cPhotonMAX::refreshCameraSettings() {
 	// TODO: use a mutex here.
-	WaitForSingleObject(camMutex, INFINITE);
+	EnterCriticalSection(&camCS);
 	pl_exp_finish_seq(hCam, frame, 0);
 	pl_exp_setup_seq(hCam, 1, 1, &region, TIMED_MODE, expTime, &size);
 	started = false;
-	ReleaseMutex(camMutex);
+	LeaveCriticalSection(&camCS);
 }
 
 array<unsigned char> ^ cPhotonMAX::getFrame() {
@@ -92,7 +90,7 @@ array<unsigned char> ^ cPhotonMAX::getFrame() {
 
 	startIfNot();
 
-	WaitForSingleObject(camMutex, INFINITE);
+	EnterCriticalSection(&camCS);
 	/* wait for data or error */
 	while (pl_exp_check_status(hCam, &status, &not_needed) &&
 		(status != READOUT_COMPLETE && status != READOUT_FAILED));
@@ -112,7 +110,7 @@ array<unsigned char> ^ cPhotonMAX::getFrame() {
 		pdata[3 * i + 1] = upper;
 		pdata[3 * i + 2] = upper;
 	}
-	ReleaseMutex(camMutex);
+	LeaveCriticalSection(&camCS);
 	refreshCameraSettings();
 
 	return pdata;
@@ -124,7 +122,7 @@ unsigned short * cPhotonMAX::getRawFrame() {
 
 	startIfNot();
 		
-	WaitForSingleObject(camMutex, INFINITE);
+	EnterCriticalSection(&camCS);
 	/* wait for data or error */
 	while (pl_exp_check_status(hCam, &status, &not_needed) &&
 		(status != READOUT_COMPLETE && status != READOUT_FAILED));
@@ -138,7 +136,7 @@ unsigned short * cPhotonMAX::getRawFrame() {
 	for (uns32 i = 0; i < size / sizeof(uns16); i++) {
 		rawFrame[i] = frame[i];
 	}
-	ReleaseMutex(camMutex);
+	LeaveCriticalSection(&camCS);
 	refreshCameraSettings();
 
 	return rawFrame;

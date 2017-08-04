@@ -32,7 +32,7 @@ private:
 	uns32 size;
 	rs_bool started;
 	rgn_type region;
-	HANDLE camMutex;
+	CRITICAL_SECTION camCS;
 
 	void startStream();
 	void startIfNot();

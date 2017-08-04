@@ -20,17 +20,20 @@ cPixeLINK::cPixeLINK(unsigned short wx, unsigned short wy)
 	this->WX = wx;
 	this->WY = wy;
 	bSize = getBufferSize();
+
+	InitializeCriticalSectionAndSpinCount(&camCS, 0x00000400);
 }
 
 
 cPixeLINK::~cPixeLINK()
 {
 	Api::Uninitialize(hCamera);
+	DeleteCriticalSection(&camCS);
 }
 
 array<unsigned char>^ cPixeLINK::getFrame()
 {
-	WaitForSingleObject(camMutex, INFINITE);
+	EnterCriticalSection(&camCS);
 	ReturnCode rc = Api::SetStreamState(hCamera, StreamState::Start);
 	handleReturnCode(rc);
 	FrameDescriptor fDesc;
@@ -47,14 +50,14 @@ array<unsigned char>^ cPixeLINK::getFrame()
 
 	rc = Api::SetStreamState(hCamera, StreamState::Stop);
 	handleReturnCode(rc);
-	ReleaseMutex(camMutex);
+	LeaveCriticalSection(&camCS);
 
 	return ret;
 }
 
 unsigned short * cPixeLINK::getRawFrame()
 {
-	WaitForSingleObject(camMutex, INFINITE);
+	EnterCriticalSection(&camCS);
 	ReturnCode rc = Api::SetStreamState(hCamera, StreamState::Start);
 	handleReturnCode(rc);
 	FrameDescriptor fDesc;
@@ -74,32 +77,32 @@ unsigned short * cPixeLINK::getRawFrame()
 
 	rc = Api::SetStreamState(hCamera, StreamState::Stop);
 	handleReturnCode(rc);
-	ReleaseMutex(camMutex);
+	LeaveCriticalSection(&camCS);
 
 	return retFrame;
 }
 
 void cPixeLINK::setExposureTime(unsigned int e)
 {
-	WaitForSingleObject(camMutex, INFINITE);
+	EnterCriticalSection(&camCS);
 	FeatureFlags flags = FeatureFlags::Manual;
 	array<float> ^parm = gcnew array<float>(1);
 	float exp = (float)(e / 1000000.0);
 	parm[0] = exp;
 	ReturnCode rc = Api::SetFeature(hCamera, Feature::Shutter, flags, 1, parm);
 	handleReturnCode(rc);
-	ReleaseMutex(camMutex);
+	LeaveCriticalSection(&camCS);
 }
 
 void cPixeLINK::setGain(float g)
 {
-	WaitForSingleObject(camMutex, INFINITE);
+	EnterCriticalSection(&camCS);
 	FeatureFlags flags = FeatureFlags::Manual;
 	array<float> ^parm = gcnew array<float>(1);
 	parm[0] = g;
 	ReturnCode rc = Api::SetFeature(hCamera, Feature::Gain, flags, 1, parm);
 	handleReturnCode(rc);
-	ReleaseMutex(camMutex);
+	LeaveCriticalSection(&camCS);
 }
 
 /*
